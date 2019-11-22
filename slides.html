@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>An introduction to TensorFlow Probability (TFP)</title>
+<meta name="author" content="Jeff Pollock"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="file:///home/jeff/workspace/reveal.js/css/reveal.css"/>
+
+<link rel="stylesheet" href="file:///home/jeff/workspace/reveal.js/css/theme/black.css" id="theme"/>
+
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'file:///home/jeff/workspace/reveal.js/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide" data-background="plain_quantbet_background.png">
+<h1>An introduction to TensorFlow Probability (TFP)</h1><p>Jeff Pollock, QuantBet</p><p><a href="https://github.com/jeffpollock9/tfp-intro">https://github.com/jeffpollock9/tfp-intro</a></p>
+</section>
+
+<section>
+<section id="slide-org2849cc3" data-background="plain_quantbet_background.png">
+<h2 id="org2849cc3">Who am I?</h2>
+<ul>
+<li>My name is Jeff</li>
+<li>Minor contributor to TensorFlow Probability</li>
+<li>At QuantBet I try to predict football outcomes so we can bet on them</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-org10e8f22" data-background="plain_quantbet_background.png">
+<h2 id="org10e8f22">Questions I hope this talk answers</h2>
+<ol>
+<li>What's probabilistic programming?</li>
+<li>Why TensorFlow?</li>
+<li>How do I use TensorFlow Probability?</li>
+<li>How does Tensorflow Probability compare to Stan?</li>
+
+</ol>
+
+</section>
+</section>
+<section>
+<section id="slide-orgfe2345c" data-background="plain_quantbet_background.png">
+<h2 id="orgfe2345c">Probabilistic Programming</h2>
+<div class="outline-text-2" id="text-orgfe2345c">
+</div>
+</section>
+<section id="slide-org9412e4d" data-background="plain_quantbet_background.png">
+<h3 id="org9412e4d">What is probabilistic programming?</h3>
+<ol>
+<li>Specify a model</li>
+<li>Run an inference algorithm</li>
+<li>Inspect the output</li>
+
+</ol>
+
+</section>
+<section id="slide-org483dd01" data-background="plain_quantbet_background.png">
+<h3 id="org483dd01">What exactly does specify a model mean?</h3>
+<div class="outline-text-3" id="text-org483dd01">
+</div>
+</section>
+<section id="slide-org73dbe60" data-background="plain_quantbet_background.png">
+<h4 id="org73dbe60">The joint distribution of data and parameters</h4>
+<p>
+\[
+P(Y, \theta) = P(Y | \theta) P(\theta) \propto P(\theta | Y)
+\]
+</p>
+
+<p>
+For observed data \(Y\) and model parameters \(\theta\).
+</p>
+
+</section>
+<section id="slide-org1ae7472" data-background="plain_quantbet_background.png">
+<h4 id="org1ae7472">Linear regression example</h4>
+<div>
+\begin{aligned}
+\beta& \sim Normal(0, 1^2) \\
+\sigma& \sim Exponential(1) \\
+Y& \sim Normal(\beta X, \sigma^2) \\
+\end{aligned}
+
+</div>
+
+<p>
+\(\implies P(Y, \beta, \sigma) = P(Y | \beta, \sigma) P(\beta) P(\sigma)\)
+</p>
+
+<p>
+For observation \(Y\) and model parameters \(\theta = (\beta, \sigma)\).
+</p>
+
+</section>
+<section id="slide-org559717b" data-background="plain_quantbet_background.png">
+<h4 id="org559717b">Linear regression example in Stan</h4>
+<div>
+\begin{aligned}
+\beta& \sim Normal(0, 1^2) \\
+\sigma& \sim Exponential(1) \\
+Y& \sim Normal(\beta X, \sigma^2) \\
+\end{aligned}
+
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-stan"><span style="color: #F0DFAF; font-weight: bold;">model</span> {
+    coefficient <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">normal</span>(0.0, 1.0);
+    observation_noise_scale <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">exponential</span>(1.0);
+    observation <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">normal</span>(coefficient * covariate, observation_noise_scale);
+}
+</pre>
+</div>
+
+</section>
+<section id="slide-orgae03f1d" data-background="plain_quantbet_background.png">
+<h4 id="orgae03f1d">(Slight aside) What Stan does with this</h4>
+<div class="org-src-container">
+
+<pre  class="src src-C++"><span style="color: #7CB8BB;">real</span> <span style="color: #93E0E3;">log_prob</span>(<span style="color: #7CB8BB;">vector</span> <span style="color: #DFAF8F;">parameters</span>) {
+
+    <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">model parameters</span>
+    <span style="color: #7CB8BB;">real</span> <span style="color: #DFAF8F;">coefficient</span> = parameters[0];
+    <span style="color: #7CB8BB;">real</span> <span style="color: #DFAF8F;">observation_noise_scale</span> = parameters[1];
+
+    <span style="color: #5F7F5F;">// </span><span style="color: #7F9F7F;">model body</span>
+    <span style="color: #7CB8BB;">real</span> <span style="color: #DFAF8F;">lp</span> = 0.0;
+
+    lp += normal_log(coefficient, 0.0, 1.0);
+    lp += exponential_log(observation_noise_scale, 1.0);
+    lp += normal_log(
+        observation, coefficient * covariate, observation_noise_scale);
+
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> lp;
+}
+</pre>
+</div>
+
+<p>
+Note: generated C++ heavily edited
+</p>
+
+</section>
+<section id="slide-org32bbaea" data-background="plain_quantbet_background.png">
+<h4 id="org32bbaea">Linear regression example in TensorFlow Probability</h4>
+<div>
+\begin{aligned}
+\beta& \sim Normal(0, 1^2) \\
+\sigma& \sim Exponential(1) \\
+Y& \sim Normal(\beta X, \sigma^2) \\
+\end{aligned}
+
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">model</span>():
+    <span style="color: #DFAF8F;">coefficient</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(loc=0.0, scale=1.0))
+    <span style="color: #DFAF8F;">observation_noise_scale</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Exponential(rate=1.0))
+    <span style="color: #DFAF8F;">observation</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.Normal(
+        loc=coefficient * covariate, scale=observation_noise_scale
+    )
+
+
+<span style="color: #DFAF8F;">joint_dist</span> = tfd.JointDistributionCoroutine(model)
+</pre>
+</div>
+
+</section>
+<section id="slide-org2fd2a9b" data-background="plain_quantbet_background.png">
+<h3 id="org2fd2a9b">Inference algorithms</h3>
+<ol>
+<li>MCMC (NUTS, HMC, &#x2026;)</li>
+<li>Variational inference (ADVI, &#x2026;)</li>
+<li>Optimisation (BFGS, &#x2026;)</li>
+
+</ol>
+
+</section>
+<section id="slide-org464fe83" data-background="plain_quantbet_background.png">
+<h3 id="org464fe83">Other probabilistic programming languages</h3>
+<ol>
+<li><a href="https://pyro.ai/">Pyro</a></li>
+<li><a href="https://github.com/pymc-devs/pymc3">PyMC3</a></li>
+<li><a href="https://github.com/pymc-devs/pymc4">PyMC4</a> (based on TensorFlow Probability!)</li>
+<li><a href="https://github.com/TuringLang/Turing.jl">Turing.jl</a></li>
+
+</ol>
+
+</section>
+</section>
+<section>
+<section id="slide-orgcd03d4a" data-background="plain_quantbet_background.png">
+<h2 id="orgcd03d4a">Tensorflow 2 basics</h2>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">import</span> tensorflow <span style="color: #F0DFAF; font-weight: bold;">as</span> tf
+<span style="color: #F0DFAF; font-weight: bold;">import</span> tensorflow_probability <span style="color: #F0DFAF; font-weight: bold;">as</span> tfp
+<span style="color: #F0DFAF; font-weight: bold;">import</span> arviz <span style="color: #F0DFAF; font-weight: bold;">as</span> az
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(tf.__version__)
+</pre>
+</div>
+
+<pre class="example">
+2.0.0
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(tfp.__version__)
+</pre>
+</div>
+
+<pre class="example">
+0.8.0
+
+</pre>
+
+</section>
+<section id="slide-org74dd426" data-background="plain_quantbet_background.png">
+<h3 id="org74dd426">Automatic Differentiation</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">objective</span>(x):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> tf.sin(x) + tf.exp(x)
+
+
+<span style="color: #DFAF8F;">x</span> = 3.14
+
+<span style="color: #DFAF8F;">manual_grad</span> = tf.cos(x) + tf.exp(x)
+<span style="color: #DFAF8F;">value</span>, <span style="color: #DFAF8F;">automatic_grad</span> = tfp.math.value_and_gradient(objective, x)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"manual:    {manual_grad}"</span>)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"automatic: {automatic_grad.numpy()}"</span>)
+</pre>
+</div>
+
+<pre class="example">
+manual:    22.103872299194336
+automatic: 22.103872299194336
+
+</pre>
+
+</section>
+<section id="slide-orgbff4956" data-background="plain_quantbet_background.png">
+<h3 id="orgbff4956">Easy to use accelerated hardware</h3>
+<div style="font-size: 65%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #7CB8BB;">@benchmark</span>(warmup=5, runs=100)
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">tf_matvec</span>(mat, vec):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> tf.linalg.matvec(mat, vec)
+
+
+<span style="color: #7CB8BB;">@benchmark</span>(warmup=5, runs=100)
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">np_matvec</span>(mat, vec):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> np.dot(mat, vec)
+
+
+<span style="color: #DFAF8F;">num_data</span> = 100_000
+<span style="color: #DFAF8F;">num_coefficients</span> = 100
+
+<span style="color: #DFAF8F;">design_matrix</span> = tf.random.normal([num_data, num_coefficients])
+<span style="color: #DFAF8F;">coefficients</span> = tf.random.normal([num_coefficients])
+
+np.testing.assert_allclose(
+    tf_matvec(design_matrix, coefficients),
+    np_matvec(design_matrix.numpy(), coefficients.numpy()),
+    atol=1e-5,
+)
+</pre>
+</div>
+
+<pre class="example">
+100 runs of tf_matvec took 0.0141 seconds
+100 runs of np_matvec took 0.1190 seconds
+
+</pre>
+
+</section>
+<section id="slide-orgd251846" data-background="plain_quantbet_background.png">
+<h3 id="orgd251846">Easy to switch between CPU and GPU</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">with</span> tf.device(<span style="color: #CC9393;">"/CPU:0"</span>):
+    <span style="color: #DFAF8F;">design_matrix</span> = tf.random.normal([num_data, num_coefficients])
+    <span style="color: #DFAF8F;">coefficients</span> = tf.random.normal([num_coefficients])
+    <span style="color: #DFAF8F;">_</span> = tf_matvec(design_matrix, coefficients),
+
+<span style="color: #F0DFAF; font-weight: bold;">with</span> tf.device(<span style="color: #CC9393;">"/GPU:0"</span>):
+    <span style="color: #DFAF8F;">design_matrix</span> = tf.random.normal([num_data, num_coefficients])
+    <span style="color: #DFAF8F;">coefficients</span> = tf.random.normal([num_coefficients])
+    <span style="color: #DFAF8F;">_</span> = tf_matvec(design_matrix, coefficients),
+</pre>
+</div>
+
+<pre class="example">
+100 runs of tf_matvec took 0.2639 seconds
+100 runs of tf_matvec took 0.0073 seconds
+
+</pre>
+
+</section>
+<section id="slide-orgd6d07fd" data-background="plain_quantbet_background.png">
+<h3 id="orgd6d07fd">Deep learning</h3>
+
+<div class="figure">
+<p><img src="statistics_vs_deep_learning.jpg" alt="statistics_vs_deep_learning.jpg" />
+</p>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org693843e" data-background="plain_quantbet_background.png">
+<h2 id="org693843e">Tensorflow Probability basics</h2>
+<p>
+Key ingredients for a probabilistic programming language:
+</p>
+
+<ul>
+<li>Model specification: <code>tfp.distributions</code></li>
+<li>Parameter inference: <code>tfp.mcmc</code>, <code>tfp.vi</code>, <code>tfp.optimizer</code></li>
+
+</ul>
+
+<p>
+Some extra goodies: <code>tfp.bijectors</code>, <code>tfp.glm</code>, <code>tfp.sts</code>, <code>tfp.layers</code>
+</p>
+
+</section>
+<section id="slide-org42ce3b7" data-background="plain_quantbet_background.png">
+<h3 id="org42ce3b7">Distributions</h3>
+<p>
+The building blocks of our model specification.
+</p>
+
+</section>
+<section id="slide-org5d52f65" data-background="plain_quantbet_background.png">
+<h4 id="org5d52f65">Univariate Normal</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">dist</span> = tfd.Normal(loc=0.0, scale=1.0)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">sample</span> = dist.sample(3)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(sample)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor([-0.20061125 -1.2735859   0.48410097], shape=(3,), dtype=float32)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(dist.log_prob(sample))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor([-0.9390609 -1.729949  -1.0361154], shape=(3,), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org8de825d" data-background="plain_quantbet_background.png">
+<h4 id="org8de825d">"Batched" univariate Normal</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">dist</span> = tfd.Normal(loc=[0.0, 10.0], scale=1.0)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">sample</span> = dist.sample(3)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(sample)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[ 1.1442095  8.391022 ]
+ [-1.347222   9.383066 ]
+ [ 0.8454657 10.157462 ]], shape=(3, 2), dtype=float32)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(dist.log_prob(sample))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[-1.5735462 -2.213344 ]
+ [-1.826442  -1.1092422]
+ [-1.2763447 -0.9313357]], shape=(3, 2), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org557f5e0" data-background="plain_quantbet_background.png">
+<h4 id="org557f5e0"><code>tfd.Independent</code></h4>
+<blockquote>
+<p>
+This distribution is useful for regarding a collection of independent, non-identical
+distributions as a single random variable.
+</p>
+</blockquote>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">batch_dist</span> = tfd.Normal(loc=[0.0, 1.0], scale=1.0)
+print_shapes(batch_dist)
+</pre>
+</div>
+
+<pre class="example">
+batch: (2,), event: ()
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">event_dist</span> = tfd.Independent(batch_dist, reinterpreted_batch_ndims=1)
+print_shapes(event_dist)
+</pre>
+</div>
+
+<pre class="example">
+batch: (), event: (2,)
+
+</pre>
+
+</section>
+<section id="slide-org3a327a4" data-background="plain_quantbet_background.png">
+<h4 id="org3a327a4"><code>tfd.Independent</code></h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">y</span> = [1.5, 4.2]
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(batch_dist.log_prob(y))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor([-2.0439386 -6.038938 ], shape=(2,), dtype=float32)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(event_dist.log_prob(y))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(-8.082876, shape=(), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org4e261a5" data-background="plain_quantbet_background.png">
+<h4 id="org4e261a5">Scotland Vs England</h4>
+<div>
+\begin{aligned}
+Sco & \sim Poisson(2) \\
+Eng & \sim Poisson(0.5)
+\end{aligned}
+
+</div>
+
+<p>
+\(P(Sco=x, Eng=y) = P(Sco=x) P(Eng=y)\)
+</p>
+
+</section>
+<section id="slide-orgdcfa240" data-background="plain_quantbet_background.png">
+<h4 id="orgdcfa240">Scotland Vs England</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">scotland_rate</span> = 2.0
+<span style="color: #DFAF8F;">england_rate</span> = 0.5
+
+<span style="color: #DFAF8F;">batched_dist</span> = tfd.Poisson(rate=[scotland_rate, england_rate])
+<span style="color: #DFAF8F;">bivariate_dist</span> = tfd.Independent(batched_dist, reinterpreted_batch_ndims=1)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(bivariate_dist.sample(3))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[6. 0.]
+ [3. 0.]
+ [1. 0.]], shape=(3, 2), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org2421eae" data-background="plain_quantbet_background.png">
+<h4 id="org2421eae">Scotland Vs England</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">scores</span> = [[[0, 0], [0, 1], [0, 2]],
+          [[1, 0], [1, 1], [1, 2]],
+          [[2, 0], [2, 1], [2, 2]]]
+
+<span style="color: #DFAF8F;">probs</span> = bivariate_dist.prob(scores)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(probs)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[0.08208499 0.0410425  0.01026062]
+ [0.16416998 0.08208499 0.02052125]
+ [0.16416998 0.08208499 0.02052125]], shape=(3, 3), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-orgf619f60" data-background="plain_quantbet_background.png">
+<h4 id="orgf619f60">Scotland Vs England</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">max_goals</span> = 20
+<span style="color: #DFAF8F;">scores</span> = [[[i, j] <span style="color: #F0DFAF; font-weight: bold;">for</span> j <span style="color: #F0DFAF; font-weight: bold;">in</span> <span style="color: #DCDCCC; font-weight: bold;">range</span>(max_goals)] <span style="color: #F0DFAF; font-weight: bold;">for</span> i <span style="color: #F0DFAF; font-weight: bold;">in</span> <span style="color: #DCDCCC; font-weight: bold;">range</span>(max_goals)]
+
+<span style="color: #DFAF8F;">probs</span> = bivariate_dist.prob(scores)
+
+<span style="color: #DFAF8F;">scotland</span> = np.tril(probs, k=-1).<span style="color: #DCDCCC; font-weight: bold;">sum</span>()
+<span style="color: #DFAF8F;">draw</span> = np.diag(probs).<span style="color: #DCDCCC; font-weight: bold;">sum</span>()
+<span style="color: #DFAF8F;">england</span> = np.triu(probs, k=1).<span style="color: #DCDCCC; font-weight: bold;">sum</span>()
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Scotland: {scotland:.4f}, Draw: {draw:.4f}, England: {england:.4f}"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Scotland: 0.7310, Draw: 0.1871, England: 0.0819
+
+</pre>
+
+</section>
+<section id="slide-org72c035f" data-background="plain_quantbet_background.png">
+<h4 id="org72c035f">Joint distributions</h4>
+<div>
+\begin{aligned}
+\log(\lambda_{Sco}) & \sim Normal(2, 1^2) \\
+\log(\lambda_{Eng}) & \sim Normal(0.5, 1^2) \\
+Sco & \sim Poisson(\lambda_{Sco}) \\
+Eng & \sim Poisson(\lambda_{Eng})
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-org3d3f248" data-background="plain_quantbet_background.png">
+<h4 id="org3d3f248">Joint distributions</h4>
+<div>
+\begin{aligned}
+P(\lambda_{Sco}, \lambda_{Eng}, Sco, Eng) = &P(\lambda_{Sco}) P(\lambda_{Eng}) \times \\
+                                            &P(Sco | \lambda_{Sco}) P(Eng | \lambda_{Eng})
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-orga526427" data-background="plain_quantbet_background.png">
+<h4 id="orga526427">Joint distributions</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">Root</span> = tfd.JointDistributionCoroutine.Root
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">model</span>():
+    <span style="color: #DFAF8F;">scotland_log_rate</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(loc=2.0, scale=1.0))
+    <span style="color: #DFAF8F;">england_log_rate</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(loc=0.5, scale=1.0))
+
+    <span style="color: #DFAF8F;">log_rates</span> = tf.stack([scotland_log_rate, england_log_rate], axis=-1)
+
+    <span style="color: #DFAF8F;">goals</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.Independent(
+        tfd.Poisson(log_rate=log_rates), reinterpreted_batch_ndims=1
+    )
+
+
+<span style="color: #DFAF8F;">joint_dist</span> = tfd.JointDistributionCoroutine(model)
+</pre>
+</div>
+
+</section>
+<section id="slide-orga6cf69f" data-background="plain_quantbet_background.png">
+<h4 id="orga6cf69f">Joint distributions</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">scotland_log_rates</span>, <span style="color: #DFAF8F;">england_log_rates</span>, <span style="color: #DFAF8F;">goals</span> = joint_dist.sample(3)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(scotland_log_rates)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor([2.0298522 2.3707705 2.102074 ], shape=(3,), dtype=float32)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(england_log_rates)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor([-0.9017575   0.35339326  3.388393  ], shape=(3,), dtype=float32)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(goals)
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[10.  0.]
+ [12.  0.]
+ [ 8. 31.]], shape=(3, 2), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org357d867" data-background="plain_quantbet_background.png">
+<h3 id="org357d867">Bijectors</h3>
+<blockquote>
+<p>
+A bijective function is a one-to-one (injective) and onto (surjective) mapping
+</p>
+</blockquote>
+
+
+<div class="figure">
+<p><img src="function-mapping.png" alt="function-mapping.png" />
+</p>
+</div>
+
+</section>
+<section id="slide-org519cc2a" data-background="plain_quantbet_background.png">
+<h4 id="org519cc2a">How to transform random variables</h4>
+<p>
+\(f\) is a bijective function.
+</p>
+
+<div>
+\begin{aligned}
+Y    &= f(X) \\
+P_Y(y) &= P_X(f^{-1}(y)) \left| \frac{d}{dy} f^{-1}(y) \right|
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-orgf76f389" data-background="plain_quantbet_background.png">
+<h4 id="orgf76f389">Main bijector operations</h4>
+<ol>
+<li><code>forward</code>: \(f(X)\)</li>
+<li><code>inverse</code>: \(f^{-1}(X)\)</li>
+<li><code>inverse_log_det_jacobian</code>: \(\log \left( \left| \frac{d}{dy} f^{-1}(y) \right| \right)\)</li>
+
+</ol>
+
+</section>
+<section id="slide-org744784a" data-background="plain_quantbet_background.png">
+<h4 id="org744784a">The Log-Normal distribution</h4>
+<p>
+\(X \sim Normal(\mu, \sigma^{2}), \quad Y = f(X)\)
+</p>
+
+<p>
+\(f(x) = \exp(x), \quad f^{-1}(x) = \log(x)\)
+</p>
+
+<div>
+\begin{aligned}
+P_Y(y) &= P_X(f^{-1}(y)) \left| \frac{d}{dy} f^{-1}(y) \right| \\
+       &= P_X(\log(y)) \frac{1}{y}
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-orgb23cb83" data-background="plain_quantbet_background.png">
+<h4 id="orgb23cb83">Correlation distribution</h4>
+<div>
+\begin{aligned}
+X &\sim Beta(2, 2) \\
+Y &= f(X) \\
+  &= 2X - 1
+\end{aligned}
+
+</div>
+
+<p>
+Taken from <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">Stan's Prior Choice Recommendations</a>
+</p>
+
+</section>
+<section id="slide-org80d584e" data-background="plain_quantbet_background.png">
+<h4 id="org80d584e">Correlation distribution</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">f</span> = tfb.AffineScalar(shift=-1.0, scale=2.0)
+<span style="color: #DFAF8F;">beta</span> = tfd.Beta(concentration0=2.0, concentration1=2.0)
+<span style="color: #DFAF8F;">correlation_dist</span> = f(beta)
+<span style="color: #DFAF8F;">y</span> = tf.<span style="color: #DCDCCC; font-weight: bold;">range</span>(start=-1.0, limit=1.0, delta=1e-4)
+
+plt.hist(correlation_dist.sample(100_000), bins=50, density=<span style="color: #BFEBBF;">True</span>)
+plt.plot(y, correlation_dist.prob(y), linewidth=2.5)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="correlation_samples.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org02a50b5" data-background="plain_quantbet_background.png">
+<h3 id="org02a50b5">MCMC</h3>
+<p>
+Going NUTS with Stan and TensorFlow Probability
+</p>
+
+</section>
+<section id="slide-org475463e" data-background="plain_quantbet_background.png">
+<h4 id="org475463e">MVN example</h4>
+<div>
+\begin{aligned}
+\begin{bmatrix} X \\ Y \end{bmatrix}
+\sim
+MVN
+\left(
+\begin{bmatrix} 0 \\ 10 \end{bmatrix},
+\begin{bmatrix} 16, 24 \\ 24, 64 \end{bmatrix}
+\right)
+\end{aligned}
+
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">scale_x</span>, <span style="color: #DFAF8F;">scale_y</span>, <span style="color: #DFAF8F;">correlation</span> = 4.0, 8.0, 0.75
+
+<span style="color: #DFAF8F;">mvn_dist</span> = tfd.MultivariateNormalFullCovariance(
+    loc=[0.0, 10.0],
+    covariance_matrix=[
+        [scale_x**2, scale_x * scale_y * correlation],
+        [scale_x * scale_y * correlation, scale_y**2],
+    ],
+)
+</pre>
+</div>
+
+</section>
+<section id="slide-org525e9f9" data-background="plain_quantbet_background.png">
+<h4 id="org525e9f9">MVN example</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">print_shapes(mvn_dist)
+</pre>
+</div>
+
+<pre class="example">
+batch: (), event: (2,)
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(mvn_dist.sample(3))
+</pre>
+</div>
+
+<pre class="example">
+tf.Tensor(
+[[-0.9434234 10.352297 ]
+ [ 2.6398509 20.04413  ]
+ [ 3.2340534 25.358845 ]], shape=(3, 2), dtype=float32)
+
+</pre>
+
+</section>
+<section id="slide-org66346f8" data-background="plain_quantbet_background.png">
+<h4 id="org66346f8">MVN example</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">samples</span> = mvn_dist.sample(10_000)
+
+az.plot_joint({<span style="color: #CC9393;">"x"</span>: samples[:, 0], <span style="color: #CC9393;">"y"</span>: samples[:, 1]}, kind=<span style="color: #CC9393;">"kde"</span>)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="mvn_samples.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org4380b63" data-background="plain_quantbet_background.png">
+<h4 id="org4380b63">MVN example Stan</h4>
+<div class="org-src-container">
+
+<pre  class="src src-stan" id="mvn-stan"><span style="color: #F0DFAF; font-weight: bold;">data</span> {
+    <span style="color: #7CB8BB;">vector</span>[2] <span style="color: #DFAF8F;">location</span>;
+    <span style="color: #7CB8BB;">cov_matrix</span>[2] <span style="color: #DFAF8F;">covariance</span>;
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">transformed data</span> {
+    <span style="color: #7CB8BB;">cholesky_factor_cov</span>[2] covariance_tril <span style="color: #BFEBBF;">=</span> <span style="color: #93E0E3;">cholesky_decompose</span>(covariance);
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">parameters</span> {
+    <span style="color: #7CB8BB;">vector</span>[2] <span style="color: #DFAF8F;">x</span>;
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">model</span> {
+    x <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">multi_normal_cholesky</span>(location, covariance_tril);
+}
+</pre>
+</div>
+
+</section>
+<section id="slide-orgd604c68" data-background="plain_quantbet_background.png">
+<h4 id="orgd604c68">MVN example Stan</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">stan_model</span> = pystan.StanModel(
+    stan_mvn, extra_compile_args=[<span style="color: #CC9393;">"-O3"</span>, <span style="color: #CC9393;">"-march=native"</span>, <span style="color: #CC9393;">"-ffast-math"</span>]
+)
+
+<span style="color: #DFAF8F;">stan_data</span> = {
+    <span style="color: #CC9393;">"location"</span>: mvn_dist.mean().numpy(),
+    <span style="color: #CC9393;">"covariance"</span>: mvn_dist.covariance().numpy(),
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> stan_timer:
+    <span style="color: #DFAF8F;">stan_fit</span> = stan_model.sampling(data=stan_data, chains=6)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Stan took {stan_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Stan took 0.4984 seconds
+
+</pre>
+
+</section>
+<section id="slide-orgcd5c217" data-background="plain_quantbet_background.png">
+<h4 id="orgcd5c217">(Slight aside) Fast math</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">foo</span>(x):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> x * x * x * x
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">bar</span>(x):
+    <span style="color: #DFAF8F;">x2</span> = x * x
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> x2 * x2
+
+
+<span style="color: #DFAF8F;">x</span> = 1.123456789123456789
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"foo(x)={foo(x):.15f}"</span>)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"bar(x)={bar(x):.15f}"</span>)
+</pre>
+</div>
+
+<pre class="example">
+foo(x)=1.593035640411334
+bar(x)=1.593035640411333
+
+</pre>
+
+<p>
+see <a href="https://godbolt.org/z/a3KzfG">godbolt.org</a>
+</p>
+
+</section>
+<section id="slide-org6bf9ebc" data-background="plain_quantbet_background.png">
+<h4 id="org6bf9ebc">MVN example TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">step_size_setter_fn</span>(pkr, new_step_size):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr._replace(step_size=new_step_size)
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">step_size_getter_fn</span>(pkr):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr.step_size
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">log_accept_prob_getter_fn</span>(pkr):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr.log_accept_ratio
+</pre>
+</div>
+
+</section>
+<section id="slide-org23f82de" data-background="plain_quantbet_background.png">
+<h4 id="org23f82de">MVN example TFP</h4>
+<div style="font-size: 75%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">initial_state</span> = tf.random.uniform([2**15, 2], minval=-2.0, maxval=2.0)
+
+
+<span style="color: #7CB8BB;">@tf.function</span>(autograph=<span style="color: #BFEBBF;">False</span>)
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">run_mcmc</span>():
+
+    <span style="color: #DFAF8F;">nuts</span> = tfp.mcmc.NoUTurnSampler(mvn_dist.log_prob, step_size=[[1.0, 1.0]])
+
+    <span style="color: #DFAF8F;">adaptive_nuts</span> = tfp.mcmc.DualAveragingStepSizeAdaptation(
+        inner_kernel=nuts,
+        num_adaptation_steps=800,
+        target_accept_prob=0.8,
+        step_size_setter_fn=step_size_setter_fn,
+        step_size_getter_fn=step_size_getter_fn,
+        log_accept_prob_getter_fn=log_accept_prob_getter_fn,
+    )
+
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> tfp.mcmc.sample_chain(
+        num_results=1_000,
+        current_state=initial_state,
+        num_burnin_steps=1_000,
+        kernel=adaptive_nuts,
+        trace_fn=<span style="color: #BFEBBF;">None</span>,
+    )
+</pre>
+</div>
+
+</section>
+<section id="slide-org775519e" data-background="plain_quantbet_background.png">
+<h4 id="org775519e">MVN example TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> tfp_timer:
+    [tfp_samples] = tf.xla.experimental.<span style="color: #DCDCCC; font-weight: bold;">compile</span>(run_mcmc)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"TFP took {tfp_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+TFP took 18.9659 seconds
+
+</pre>
+
+</section>
+<section id="slide-orgc642567" data-background="plain_quantbet_background.png">
+<h4 id="orgc642567">MVN distributions</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">dist_samples</span> = mvn_dist.sample(10_000)
+<span style="color: #DFAF8F;">stan_samples</span> = stan_fit.extract(<span style="color: #CC9393;">"x"</span>)[<span style="color: #CC9393;">"x"</span>]
+<span style="color: #DFAF8F;">tfp_samples</span> = tf.reshape(tfp_samples, [-1, 2])
+
+<span style="color: #DFAF8F;">_</span>, <span style="color: #DFAF8F;">ax</span> = plt.subplots(1, 3, sharex=<span style="color: #CC9393;">"col"</span>, sharey=<span style="color: #CC9393;">"row"</span>)
+
+ax[0].scatter(dist_samples[:, 0], dist_samples[:, 1], alpha=0.1)
+ax[0].set_title(<span style="color: #CC9393;">"truth"</span>)
+
+ax[1].scatter(tfp_samples[::10_000, 0], tfp_samples[::10_000, 1], alpha=0.1)
+ax[1].set_title(<span style="color: #CC9393;">"TFP NUTS"</span>)
+
+ax[2].scatter(stan_samples[:, 0], stan_samples[:, 1], alpha=0.1)
+ax[2].set_title(<span style="color: #CC9393;">"Stan NUTS"</span>)
+</pre>
+</div>
+
+</section>
+<section id="slide-orgd2b5185" data-background="plain_quantbet_background.png">
+<h4 id="orgd2b5185">MVN distributions</h4>
+
+<div class="figure">
+<p><object type="image/svg+xml" data="nuts_dist.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org84fb4cc" data-background="plain_quantbet_background.png">
+<h3 id="org84fb4cc">VI</h3>
+<p>
+Approximate \(P(\theta | Y)\) with a variational distribution \(Q(\theta | \phi)\)
+parameterised via some variational parameters \(\phi\).
+</p>
+
+<div>
+\begin{aligned}
+\log(P(Y)) &\geq \mathbb{E}_{Q(\theta | \phi)}(\log(P(Y, \theta))) - 
+                 \mathbb{E}_{Q(\theta | \phi)}(\log(Q(\theta | \phi)) \\
+           &= ELBO(\phi).
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-orgd5d5670" data-background="plain_quantbet_background.png">
+<h4 id="orgd5d5670">MVN example (again)</h4>
+<div>
+\begin{aligned}
+\begin{bmatrix} X \\ Y \end{bmatrix}
+\sim
+MVN
+\left(
+\begin{bmatrix} 0 \\ 10 \end{bmatrix},
+\begin{bmatrix} 16, 24 \\ 24, 64 \end{bmatrix}
+\right)
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-org19cc0ac" data-background="plain_quantbet_background.png">
+<h4 id="org19cc0ac">VI example Stan</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> stan_timer:
+    <span style="color: #DFAF8F;">stan_vi</span> = stan_model.vb(data=stan_data, output_samples=10_000)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Stan took {stan_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Stan took 0.0712 seconds
+
+</pre>
+
+</section>
+<section id="slide-org4457a73" data-background="plain_quantbet_background.png">
+<h4 id="org4457a73">VI MVN example TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">class</span> <span style="color: #7CB8BB;">VariationalState</span>:
+    <span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">__init__</span>(<span style="color: #F0DFAF; font-weight: bold;">self</span>):
+        <span style="color: #F0DFAF; font-weight: bold;">self</span>.optimizer = tf.optimizers.Adam(learning_rate=0.1)
+        <span style="color: #F0DFAF; font-weight: bold;">self</span>.loc = tf.Variable([0.0, 0.0])
+        <span style="color: #F0DFAF; font-weight: bold;">self</span>.log_scale = tf.Variable([0.0, 0.0])
+
+
+<span style="color: #DFAF8F;">state</span> = VariationalState()
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">surrogate_model</span>():
+    <span style="color: #DFAF8F;">x</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(state.loc[0], tf.math.exp(state.log_scale[0])))
+    <span style="color: #DFAF8F;">y</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(state.loc[1], tf.math.exp(state.log_scale[1])))
+
+
+<span style="color: #DFAF8F;">surrogate_dist</span> = tfd.JointDistributionCoroutine(surrogate_model)
+</pre>
+</div>
+
+</section>
+<section id="slide-org55b91dc" data-background="plain_quantbet_background.png">
+<h4 id="org55b91dc">VI MVN example TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">target_log_prob_fn</span>(x, y):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> mvn_dist.log_prob(tf.stack([x, y], axis=-1))
+
+
+<span style="color: #7CB8BB;">@tf.function</span>(autograph=<span style="color: #BFEBBF;">False</span>)
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">run_vi</span>():
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> tfp.vi.fit_surrogate_posterior(
+        target_log_prob_fn,
+        surrogate_posterior=surrogate_dist,
+        optimizer=state.optimizer,
+        num_steps=1_000,
+        sample_size=1,
+    )
+
+
+<span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> tfp_timer:
+    [elbo_loss] = tf.xla.experimental.<span style="color: #DCDCCC; font-weight: bold;">compile</span>(run_vi)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"TFP took {tfp_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+TFP took 1.4777 seconds
+
+</pre>
+
+</section>
+<section id="slide-org08b7215" data-background="plain_quantbet_background.png">
+<h4 id="org08b7215">ELBO loss TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">plt.plot(elbo_loss)
+plt.xlabel(<span style="color: #CC9393;">"iteration"</span>)
+plt.ylabel(<span style="color: #CC9393;">"ELBO loss"</span>)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="elbo_loss.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org7e49c58" data-background="plain_quantbet_background.png">
+<h4 id="org7e49c58">Variational distributions</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">surrogate_samples</span> = surrogate_dist.sample(10_000)
+<span style="color: #DFAF8F;">vb_samples</span> = stan_vi[<span style="color: #CC9393;">"sampler_params"</span>][:2]
+
+<span style="color: #DFAF8F;">_</span>, <span style="color: #DFAF8F;">ax</span> = plt.subplots(1, 3, sharex=<span style="color: #CC9393;">"col"</span>, sharey=<span style="color: #CC9393;">"row"</span>)
+
+ax[0].scatter(dist_samples[:, 0], dist_samples[:, 1], alpha=0.1)
+ax[0].set_title(<span style="color: #CC9393;">"truth"</span>)
+
+ax[1].scatter(surrogate_samples[0], surrogate_samples[1], alpha=0.1)
+ax[1].set_title(<span style="color: #CC9393;">"TFP VI"</span>)
+
+ax[2].scatter(vb_samples[0], vb_samples[1], alpha=0.1)
+ax[2].set_title(<span style="color: #CC9393;">"Stan VI"</span>)
+</pre>
+</div>
+
+</section>
+<section id="slide-orgabf6ce0" data-background="plain_quantbet_background.png">
+<h4 id="orgabf6ce0">Variational distributions</h4>
+
+<div class="figure">
+<p><object type="image/svg+xml" data="variational_dist.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-orge05e7f2" data-background="plain_quantbet_background.png">
+<h3 id="orge05e7f2">Optimizing</h3>
+<div class="outline-text-3" id="text-orge05e7f2">
+</div>
+</section>
+<section id="slide-org3f9c902" data-background="plain_quantbet_background.png">
+<h4 id="org3f9c902">Point estimates in Stan</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> stan_timer:
+    <span style="color: #DFAF8F;">stan_opt</span> = stan_model.optimizing(data=stan_data)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Stan found {stan_opt['x']}"</span>)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Stan took {stan_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Stan found [-2.91194114e-05  9.99992619e+00]
+Stan took 0.0006 seconds
+
+</pre>
+
+</section>
+<section id="slide-org5d1aba2" data-background="plain_quantbet_background.png">
+<h4 id="org5d1aba2">Point estimates in TFP</h4>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">objective</span>(x):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> -mvn_dist.log_prob(x)
+
+
+<span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> tfp_timer:
+    <span style="color: #DFAF8F;">tfp_opt</span> = tfp.optimizer.bfgs_minimize(
+        <span style="color: #F0DFAF; font-weight: bold;">lambda</span> x: tfp.math.value_and_gradient(objective, x),
+        initial_position=tf.zeros([2]),
+    )
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"TFP found {tfp_opt.position.numpy()}"</span>)
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"TFP took {tfp_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+TFP found [ 0. 10.]
+TFP took 0.1038 seconds
+
+</pre>
+
+</section>
+<section id="slide-org25c6c4a" data-background="plain_quantbet_background.png">
+<h4 id="org25c6c4a">Approximate Laplace approximation</h4>
+<div>
+\begin{aligned}
+\log(P(\theta)) &= l(\theta) \approx l(\bar{\theta}) + \frac{1}{2} (\theta - \bar{\theta}) H (\theta - \bar{\theta})
+\end{aligned}
+
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(mvn_dist.covariance().numpy())
+</pre>
+</div>
+
+<pre class="example">
+[[16. 24.]
+ [24. 64.]]
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(tfp_opt.inverse_hessian_estimate.numpy())
+</pre>
+</div>
+
+<pre class="example">
+[[16.000002 24.000004]
+ [24.000004 64.      ]]
+
+</pre>
+
+</section>
+</section>
+<section>
+<section id="slide-orgf2fce8d" data-background="plain_quantbet_background.png">
+<h2 id="orgf2fce8d">Modelling the football</h2>
+<p>
+English data taken from <a href="http://www.football-data.co.uk/">www.football-data.co.uk</a>
+</p>
+
+</section>
+<section id="slide-orgf90396c" data-background="plain_quantbet_background.png">
+<h3 id="orgf90396c">Football data</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(df.sample(5))
+</pre>
+</div>
+
+<pre class="example">
+           home_team      away_team  home_goals  away_goals
+5372        Barnsley            QPR           2           3
+3305         Everton         Fulham           1           0
+11130      Brentford        Preston           1           1
+6587   Middlesbrough  Nott'm Forest           3           0
+1793         Swansea      Newcastle           0           2
+
+</pre>
+
+</section>
+<section id="slide-org64af0a6" data-background="plain_quantbet_background.png">
+<h3 id="org64af0a6">Football data</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"{len(df)} matches"</span>)
+</pre>
+</div>
+
+<pre class="example">
+13788 matches
+
+</pre>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">teams</span> = pd.concat([df[<span style="color: #CC9393;">"home_team"</span>], df[<span style="color: #CC9393;">"away_team"</span>]]).unique()
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"{len(teams)} teams"</span>)
+</pre>
+</div>
+
+<pre class="example">
+88 teams
+
+</pre>
+
+</section>
+<section id="slide-org79557cd" data-background="plain_quantbet_background.png">
+<h3 id="org79557cd">Model specification</h3>
+<div>
+\begin{aligned}
+\mu &\sim Normal(0, 1^2) \\
+\gamma &\sim Normal(0, 1^2) \\
+\sigma &\sim Exponential(1) \\
+\alpha &\sim Normal(0, \sigma^2) \\
+\beta &\sim Normal(0, \sigma^2) \\
+H &\sim Poisson(\exp(\mu + \gamma + \alpha_h + \beta_a)) \\
+A &\sim Poisson(\exp(\mu + \alpha_a + \beta_h))
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-org890b9da" data-background="plain_quantbet_background.png">
+<h3 id="org890b9da">Model joint distribution</h3>
+<div>
+\begin{aligned}
+P(\mu, \gamma, \sigma, \alpha, \beta, H, A) = &P(\mu) P(\gamma) P(\sigma) \times \\
+                                              &P(\alpha | \sigma) P(\beta | \sigma) \times \\
+                                              &P(H | \mu, \gamma, \alpha, \beta) P(A | \mu, \alpha, \beta)
+\end{aligned}
+
+</div>
+
+</section>
+<section id="slide-orgad17ea6" data-background="plain_quantbet_background.png">
+<h3 id="orgad17ea6">Model in Stan</h3>
+<div style="font-size: 55%;">
+<div class="org-src-container">
+
+<pre  class="src src-stan" id="football-stan"><span style="color: #F0DFAF; font-weight: bold;">data</span> {
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 1&gt; <span style="color: #DFAF8F;">num_data</span>;
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 2&gt; <span style="color: #DFAF8F;">num_teams</span>;
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 1, <span style="color: #F0DFAF; font-weight: bold;">upper</span> <span style="color: #BFEBBF;">=</span> num_teams&gt; <span style="color: #DFAF8F;">home_team</span>[num_data];
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 1, <span style="color: #F0DFAF; font-weight: bold;">upper</span> <span style="color: #BFEBBF;">=</span> num_teams&gt; <span style="color: #DFAF8F;">away_team</span>[num_data];
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 0&gt; <span style="color: #DFAF8F;">home_goals</span>[num_data];
+    <span style="color: #7CB8BB;">int</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 0&gt; <span style="color: #DFAF8F;">away_goals</span>[num_data];
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">parameters</span> {
+    <span style="color: #7CB8BB;">real</span> <span style="color: #DFAF8F;">intercept</span>;
+    <span style="color: #7CB8BB;">real</span> <span style="color: #DFAF8F;">home_advantage</span>;
+    <span style="color: #7CB8BB;">real</span>&lt;<span style="color: #F0DFAF; font-weight: bold;">lower</span> <span style="color: #BFEBBF;">=</span> 0.0&gt; <span style="color: #DFAF8F;">team_scale</span>;
+    <span style="color: #7CB8BB;">vector</span>[num_teams] <span style="color: #DFAF8F;">attack</span>;
+    <span style="color: #7CB8BB;">vector</span>[num_teams] <span style="color: #DFAF8F;">defence</span>;
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">model</span> {
+    <span style="color: #7CB8BB;">vector</span>[num_data] home_log_rate <span style="color: #BFEBBF;">=</span> intercept +
+        home_advantage +
+        attack[home_team] +
+        defence[away_team];
+
+    <span style="color: #7CB8BB;">vector</span>[num_data] away_log_rate <span style="color: #BFEBBF;">=</span> intercept +
+        attack[away_team] +
+        defence[home_team];
+
+    intercept <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">std_normal</span>();
+    home_advantage <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">std_normal</span>();
+    team_scale <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">exponential</span>(1.0);
+
+    attack <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">normal</span>(0.0, team_scale);
+    defence <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">normal</span>(0.0, team_scale);
+
+    home_goals <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">poisson_log</span>(home_log_rate);
+    away_goals <span style="color: #BFEBBF;">~</span> <span style="color: #93E0E3;">poisson_log</span>(away_log_rate);
+}
+</pre>
+</div>
+
+</section>
+<section id="slide-orgbc4dba1" data-background="plain_quantbet_background.png">
+<h3 id="orgbc4dba1">Model in Stan</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">stan_model</span> = pystan.StanModel(
+    stan_football, extra_compile_args=[<span style="color: #CC9393;">"-O3"</span>, <span style="color: #CC9393;">"-march=native"</span>, <span style="color: #CC9393;">"-ffast-math"</span>]
+)
+
+<span style="color: #DFAF8F;">football_data</span> = {
+    <span style="color: #CC9393;">"num_data"</span>: <span style="color: #DCDCCC; font-weight: bold;">len</span>(df),
+    <span style="color: #CC9393;">"num_teams"</span>: <span style="color: #DCDCCC; font-weight: bold;">len</span>(teams),
+    <span style="color: #CC9393;">"home_team"</span>: pd.Categorical(df[<span style="color: #CC9393;">"home_team"</span>], categories=teams).codes + 1,
+    <span style="color: #CC9393;">"away_team"</span>: pd.Categorical(df[<span style="color: #CC9393;">"away_team"</span>], categories=teams).codes + 1,
+    <span style="color: #CC9393;">"home_goals"</span>: df[<span style="color: #CC9393;">"home_goals"</span>],
+    <span style="color: #CC9393;">"away_goals"</span>: df[<span style="color: #CC9393;">"away_goals"</span>],
+}
+
+<span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> stan_timer:
+    <span style="color: #DFAF8F;">stan_fit</span> = stan_model.sampling(data=football_data, chains=6)
+</pre>
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"Stan took {stan_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Stan took 206.3699 seconds
+
+</pre>
+
+</section>
+<section id="slide-org68c855b" data-background="plain_quantbet_background.png">
+<h3 id="org68c855b">Model in Stan</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">az_stan</span> = az.from_pystan(
+    stan_fit,
+    coords={<span style="color: #CC9393;">"teams"</span>: teams},
+    dims={<span style="color: #CC9393;">"attack"</span>: [<span style="color: #CC9393;">"teams"</span>], <span style="color: #CC9393;">"defence"</span>: [<span style="color: #CC9393;">"teams"</span>]},
+)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(az.summary(az_stan).<span style="color: #DCDCCC; font-weight: bold;">filter</span>(items=az_summary_items))
+</pre>
+</div>
+
+<pre class="example">
+                 mean     sd  hpd_3%  hpd_97%  ess_bulk  r_hat
+intercept       0.142  0.032   0.079    0.200     522.0   1.01
+home_advantage  0.227  0.010   0.208    0.247   13130.0   1.00
+team_scale      0.212  0.014   0.186    0.237    5417.0   1.00
+attack[0]       0.054  0.053  -0.047    0.151    2678.0   1.00
+attack[1]       0.066  0.048  -0.024    0.156    2215.0   1.00
+...               ...    ...     ...      ...       ...    ...
+defence[83]     0.110  0.070  -0.022    0.245    4722.0   1.00
+defence[84]     0.104  0.072  -0.036    0.235    5541.0   1.00
+defence[85]     0.202  0.097   0.004    0.369    9069.0   1.00
+defence[86]    -0.063  0.105  -0.259    0.131   10242.0   1.00
+defence[87]     0.043  0.155  -0.240    0.336   13115.0   1.00
+
+[179 rows x 6 columns]
+</pre>
+
+</section>
+<section id="slide-org81b0b1a" data-background="plain_quantbet_background.png">
+<h3 id="org81b0b1a">Model in Stan</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">az.plot_trace(
+    az_stan,
+    var_names=[<span style="color: #CC9393;">"attack"</span>],
+    coords={<span style="color: #CC9393;">"teams"</span>: [<span style="color: #CC9393;">"Man City"</span>, <span style="color: #CC9393;">"Newcastle"</span>, <span style="color: #CC9393;">"Scunthorpe"</span>]},
+)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="stan_attack.svg" class="org-svg" width="700px">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-orgc1ac026" data-background="plain_quantbet_background.png">
+<h3 id="orgc1ac026">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">num_teams</span> = football_data[<span style="color: #CC9393;">"num_teams"</span>]
+<span style="color: #DFAF8F;">home_team</span> = tf.constant(football_data[<span style="color: #CC9393;">"home_team"</span>], dtype=tf.int32) - 1
+<span style="color: #DFAF8F;">away_team</span> = tf.constant(football_data[<span style="color: #CC9393;">"away_team"</span>], dtype=tf.int32) - 1
+</pre>
+</div>
+
+</section>
+<section id="slide-org7caa75f" data-background="plain_quantbet_background.png">
+<h3 id="org7caa75f">Model in TFP</h3>
+<div style="font-size: 60%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">model</span>():
+    <span style="color: #DFAF8F;">intercept</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(loc=0.0, scale=1.0))
+    <span style="color: #DFAF8F;">home_advantage</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Normal(loc=0.0, scale=1.0))
+    <span style="color: #DFAF8F;">team_scale</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> Root(tfd.Exponential(rate=1.0))
+
+    <span style="color: #DFAF8F;">attack</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.MultivariateNormalDiag(
+        loc=tf.zeros(num_teams),
+        scale_identity_multiplier=team_scale,
+    )
+    <span style="color: #DFAF8F;">defence</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.MultivariateNormalDiag(
+        loc=tf.zeros(num_teams),
+        scale_identity_multiplier=team_scale,
+    )
+
+    <span style="color: #DFAF8F;">home_log_rate</span> = (
+        intercept[..., tf.newaxis]
+        + home_advantage[..., tf.newaxis]
+        + tf.gather(attack, home_team, axis=-1)
+        + tf.gather(defence, away_team, axis=-1)
+    )
+    <span style="color: #DFAF8F;">away_log_rate</span> = (
+        intercept[..., tf.newaxis]
+        + tf.gather(attack, away_team, axis=-1)
+        + tf.gather(defence, home_team, axis=-1)
+    )
+
+    <span style="color: #DFAF8F;">home_goals</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.Independent(
+        tfd.Poisson(log_rate=home_log_rate), reinterpreted_batch_ndims=1
+    )
+    <span style="color: #DFAF8F;">away_goals</span> = <span style="color: #F0DFAF; font-weight: bold;">yield</span> tfd.Independent(
+        tfd.Poisson(log_rate=away_log_rate), reinterpreted_batch_ndims=1
+    )
+
+
+<span style="color: #DFAF8F;">joint_dist</span> = tfd.JointDistributionCoroutine(model)
+</pre>
+</div>
+
+</section>
+<section id="slide-orgee8dc02" data-background="plain_quantbet_background.png">
+<h3 id="orgee8dc02">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">[
+    intercept,
+    home_advantage,
+    team_scale,
+    attack,
+    defence,
+    home_goals,
+    away_goals,
+] = joint_dist.sample(1_000)
+</pre>
+</div>
+
+</section>
+<section id="slide-orgb6cd934" data-background="plain_quantbet_background.png">
+<h3 id="orgb6cd934">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">az.plot_posterior(
+     {
+         <span style="color: #CC9393;">"intercept"</span>: intercept,
+         <span style="color: #CC9393;">"team_scale"</span>: team_scale,
+         <span style="color: #CC9393;">"attack[0]"</span>: attack[..., 0],
+     }
+ )
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="prior_parameter_simulation.svg" class="org-svg" width="700px">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-orgd6d4b0f" data-background="plain_quantbet_background.png">
+<h3 id="orgd6d4b0f">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">home_goals_capped</span> = np.minimum(home_goals[..., 0], 10)
+<span style="color: #DFAF8F;">away_goals_capped</span> = np.minimum(away_goals[..., 1], 10)
+
+<span style="color: #DFAF8F;">_</span>, <span style="color: #DFAF8F;">ax</span> = plt.subplots(1, 2)
+
+az.plot_dist(home_goals_capped, ax=ax[0], kind=<span style="color: #CC9393;">"hist"</span>, color=<span style="color: #CC9393;">"red"</span>)
+az.plot_dist(away_goals_capped, ax=ax[1], kind=<span style="color: #CC9393;">"hist"</span>, color=<span style="color: #CC9393;">"blue"</span>)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="prior_goals_simulation.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-orgeeb8fca" data-background="plain_quantbet_background.png">
+<h3 id="orgeeb8fca">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">home_goals</span> = tf.constant(football_data[<span style="color: #CC9393;">"home_goals"</span>], dtype=tf.float32)
+<span style="color: #DFAF8F;">away_goals</span> = tf.constant(football_data[<span style="color: #CC9393;">"away_goals"</span>], dtype=tf.float32)
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">target_log_prob_fn</span>(*state):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> joint_dist.log_prob(<span style="color: #DCDCCC; font-weight: bold;">list</span>(state) + [home_goals, away_goals])
+</pre>
+</div>
+
+</section>
+<section id="slide-orgcd2a935" data-background="plain_quantbet_background.png">
+<h3 id="orgcd2a935">Model in TFP</h3>
+<div style="font-size: 75%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">trace_fn</span>(states, pkr):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> (
+        pkr.inner_results.inner_results.target_log_prob,
+        pkr.inner_results.inner_results.leapfrogs_taken,
+        pkr.inner_results.inner_results.has_divergence,
+        pkr.inner_results.inner_results.energy,
+        pkr.inner_results.inner_results.log_accept_ratio,
+    )
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">step_size_setter_fn</span>(pkr, new_step_size):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr._replace(
+        inner_results=pkr.inner_results._replace(step_size=new_step_size)
+    )
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">step_size_getter_fn</span>(pkr):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr.inner_results.step_size
+
+
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">log_accept_prob_getter_fn</span>(pkr):
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> pkr.inner_results.log_accept_ratio
+</pre>
+</div>
+
+</section>
+<section id="slide-orge7316d1" data-background="plain_quantbet_background.png">
+<h3 id="orge7316d1">Model in TFP</h3>
+<div style="font-size: 60%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">initial_state</span> = <span style="color: #DCDCCC; font-weight: bold;">list</span>(joint_dist.sample(6)[:-2])
+<span style="color: #DFAF8F;">initial_step_size</span> = [0.1] * <span style="color: #DCDCCC; font-weight: bold;">len</span>(initial_state)
+
+<span style="color: #DFAF8F;">nuts</span> = tfp.mcmc.NoUTurnSampler(target_log_prob_fn, step_size=initial_step_size)
+
+<span style="color: #DFAF8F;">transformed_nuts</span> = tfp.mcmc.TransformedTransitionKernel(
+    inner_kernel=nuts,
+    bijector=[
+        tfb.Identity(),
+        tfb.Identity(),
+        tfb.Softplus(),
+        tfb.Identity(),
+        tfb.Identity(),
+    ],
+)
+
+<span style="color: #DFAF8F;">adaptive_transformed_nuts</span> = tfp.mcmc.DualAveragingStepSizeAdaptation(
+    inner_kernel=transformed_nuts,
+    num_adaptation_steps=800,
+    target_accept_prob=0.8,
+    step_size_setter_fn=step_size_setter_fn,
+    step_size_getter_fn=step_size_getter_fn,
+    log_accept_prob_getter_fn=log_accept_prob_getter_fn,
+)
+
+
+<span style="color: #7CB8BB;">@tf.function</span>(autograph=<span style="color: #BFEBBF;">False</span>)
+<span style="color: #F0DFAF; font-weight: bold;">def</span> <span style="color: #93E0E3;">run_mcmc</span>():
+    <span style="color: #F0DFAF; font-weight: bold;">return</span> tfp.mcmc.sample_chain(
+        num_results=1_000,
+        current_state=initial_state,
+        num_burnin_steps=1_000,
+        kernel=adaptive_transformed_nuts,
+        trace_fn=trace_fn,
+    )
+</pre>
+</div>
+
+</section>
+<section id="slide-org2206ad5" data-background="plain_quantbet_background.png">
+<h3 id="org2206ad5">(Slight aside) Softplus</h3>
+<div>
+\begin{aligned}
+f(x) = \log(1 + \exp(x))
+\end{aligned}
+
+</div>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">x</span> = tf.<span style="color: #DCDCCC; font-weight: bold;">range</span>(-2.0, 2.0, delta=1e-4)
+<span style="color: #F0DFAF; font-weight: bold;">for</span> bijector <span style="color: #F0DFAF; font-weight: bold;">in</span> [tfb.Identity(), tfb.Exp(), tfb.Softplus()]:
+    plt.plot(x, bijector.forward(x), label=bijector.name)
+plt.legend()
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="softplus.svg" class="org-svg">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org9dc568b" data-background="plain_quantbet_background.png">
+<h3 id="org9dc568b">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">with</span> Timer() <span style="color: #F0DFAF; font-weight: bold;">as</span> tfp_timer:
+    <span style="color: #DFAF8F;">samples</span>, <span style="color: #DFAF8F;">sampler_stats</span> = tf.xla.experimental.<span style="color: #DCDCCC; font-weight: bold;">compile</span>(run_mcmc)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(f<span style="color: #CC9393;">"TFP took {tfp_timer.duration:.4f} seconds"</span>)
+</pre>
+</div>
+
+<pre class="example">
+TFP took 38.7033 seconds
+
+</pre>
+
+</section>
+<section id="slide-org96bdbbc" data-background="plain_quantbet_background.png">
+<h3 id="org96bdbbc">Model in TFP</h3>
+<div style="font-size: 75%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">sample_names</span> = [<span style="color: #CC9393;">"intercept"</span>, <span style="color: #CC9393;">"home_advantage"</span>, <span style="color: #CC9393;">"team_scale"</span>, <span style="color: #CC9393;">"attack"</span>, <span style="color: #CC9393;">"defence"</span>]
+
+<span style="color: #DFAF8F;">az_samples</span> = {
+    name: np.swapaxes(sample, 0, 1) <span style="color: #F0DFAF; font-weight: bold;">for</span> name, sample <span style="color: #F0DFAF; font-weight: bold;">in</span> <span style="color: #DCDCCC; font-weight: bold;">zip</span>(sample_names, samples)
+}
+
+<span style="color: #DFAF8F;">sample_stats_names</span> = [
+    <span style="color: #CC9393;">"lp"</span>,
+    <span style="color: #CC9393;">"tree_size"</span>,
+    <span style="color: #CC9393;">"diverging"</span>,
+    <span style="color: #CC9393;">"energy"</span>,
+    <span style="color: #CC9393;">"mean_tree_accept"</span>,
+]
+
+<span style="color: #DFAF8F;">az_sample_stats</span> = {
+    name: np.swapaxes(stat, 0, 1) <span style="color: #F0DFAF; font-weight: bold;">for</span> name, stat <span style="color: #F0DFAF; font-weight: bold;">in</span> <span style="color: #DCDCCC; font-weight: bold;">zip</span>(sample_stats_names, sampler_stats)
+}
+
+<span style="color: #DFAF8F;">az_tfp</span> = az.from_dict(
+    az_samples,
+    sample_stats=az_sample_stats,
+    coords={<span style="color: #CC9393;">"teams"</span>: teams},
+    dims={<span style="color: #CC9393;">"attack"</span>: [<span style="color: #CC9393;">"teams"</span>], <span style="color: #CC9393;">"defence"</span>: [<span style="color: #CC9393;">"teams"</span>]},
+)
+</pre>
+</div>
+
+</section>
+<section id="slide-org71b7834" data-background="plain_quantbet_background.png">
+<h3 id="org71b7834">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #F0DFAF; font-weight: bold;">print</span>(az.summary(az_tfp).<span style="color: #DCDCCC; font-weight: bold;">filter</span>(items=az_summary_items))
+</pre>
+</div>
+
+<pre class="example">
+                 mean     sd  hpd_3%  hpd_97%  ess_bulk  r_hat
+intercept       0.143  0.033   0.084    0.210     510.0   1.01
+home_advantage  0.227  0.011   0.207    0.247    6294.0   1.00
+team_scale      0.212  0.014   0.186    0.236    2928.0   1.00
+attack[0]       0.054  0.052  -0.041    0.153    1805.0   1.00
+attack[1]       0.065  0.048  -0.025    0.155    1713.0   1.00
+...               ...    ...     ...      ...       ...    ...
+defence[83]     0.110  0.072  -0.025    0.247    3181.0   1.00
+defence[84]     0.103  0.072  -0.026    0.246    3117.0   1.00
+defence[85]     0.200  0.099   0.011    0.380    2302.0   1.00
+defence[86]    -0.063  0.105  -0.252    0.143    2056.0   1.00
+defence[87]     0.043  0.154  -0.239    0.332     861.0   1.01
+
+[179 rows x 6 columns]
+</pre>
+
+</section>
+<section id="slide-orgf798958" data-background="plain_quantbet_background.png">
+<h3 id="orgf798958">Model in TFP</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python">az.plot_trace(
+    az_tfp,
+    var_names=[<span style="color: #CC9393;">"attack"</span>],
+    coords={<span style="color: #CC9393;">"teams"</span>: [<span style="color: #CC9393;">"Man City"</span>, <span style="color: #CC9393;">"Newcastle"</span>, <span style="color: #CC9393;">"Scunthorpe"</span>]},
+)
+</pre>
+</div>
+
+
+<div class="figure">
+<p><object type="image/svg+xml" data="tfp_attack.svg" class="org-svg" width="700px">
+Sorry, your browser does not support SVG.</object>
+</p>
+</div>
+
+</section>
+<section id="slide-org6ae4849" data-background="plain_quantbet_background.png">
+<h3 id="org6ae4849">Man City Vs Chelsea</h3>
+<div style="font-size: 75%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">man_city</span> = np.where(teams == <span style="color: #CC9393;">"Man City"</span>)[0][0]
+<span style="color: #DFAF8F;">chelsea</span> = np.where(teams == <span style="color: #CC9393;">"Chelsea"</span>)[0][0]
+
+<span style="color: #DFAF8F;">intercept</span>, <span style="color: #DFAF8F;">home_advantage</span>, <span style="color: #DFAF8F;">team_scale</span>, <span style="color: #DFAF8F;">attack</span>, <span style="color: #DFAF8F;">defence</span> = samples
+
+<span style="color: #DFAF8F;">home_log_rate</span> = (
+    intercept
+    + home_advantage
+    + attack[..., man_city]
+    + defence[..., chelsea]
+)
+<span style="color: #DFAF8F;">away_log_rate</span> = (
+    intercept
+    + attack[..., chelsea]
+    + defence[..., man_city]
+)
+
+<span style="color: #DFAF8F;">home_away_goals</span> = tfd.Independent(
+    tfd.Poisson(log_rate=tf.stack([home_log_rate, away_log_rate], axis=-1)),
+    reinterpreted_batch_ndims=1,
+)
+
+print_shapes(home_away_goals)
+</pre>
+</div>
+
+<pre class="example">
+batch: (1000, 6), event: (2,)
+
+</pre>
+
+</section>
+<section id="slide-org67d79f4" data-background="plain_quantbet_background.png">
+<h3 id="org67d79f4">Man City Vs Chelsea</h3>
+<div style="font-size: 75%;">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">goals</span> = home_away_goals.sample()
+
+<span style="color: #DFAF8F;">home_goals</span> = goals[..., 0]
+<span style="color: #DFAF8F;">away_goals</span> = goals[..., 1]
+
+<span style="color: #DFAF8F;">probs</span> = [
+    np.mean(f(home_goals, away_goals)) <span style="color: #F0DFAF; font-weight: bold;">for</span> f <span style="color: #F0DFAF; font-weight: bold;">in</span> [tf.greater, tf.equal, tf.less]
+]
+
+<span style="color: #DFAF8F;">outcomes</span> = [<span style="color: #CC9393;">"Man City"</span>, <span style="color: #CC9393;">"Draw"</span>, <span style="color: #CC9393;">"Chelsea"</span>]
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(*[f<span style="color: #CC9393;">"{x}: {p:.2f}"</span> <span style="color: #F0DFAF; font-weight: bold;">for</span> x, p <span style="color: #F0DFAF; font-weight: bold;">in</span> <span style="color: #DCDCCC; font-weight: bold;">zip</span>(outcomes, probs)], sep=<span style="color: #CC9393;">"\n"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Man City: 0.54
+Draw: 0.24
+Chelsea: 0.22
+
+</pre>
+
+</section>
+<section id="slide-org6994da8" data-background="plain_quantbet_background.png">
+<h3 id="org6994da8">Man City Vs Chelsea</h3>
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-python"><span style="color: #DFAF8F;">odds</span> = [1.42, 5.0, 7.0]
+<span style="color: #DFAF8F;">expected_returns</span> = np.multiply(odds, probs) - 1
+<span style="color: #DFAF8F;">outcomes_and_returns</span> = <span style="color: #DCDCCC; font-weight: bold;">zip</span>(outcomes, expected_returns)
+
+<span style="color: #F0DFAF; font-weight: bold;">print</span>(*[f<span style="color: #CC9393;">"{o}: {r:.4f}"</span> <span style="color: #F0DFAF; font-weight: bold;">for</span> o, r <span style="color: #F0DFAF; font-weight: bold;">in</span> outcomes_and_returns], sep=<span style="color: #CC9393;">"\n"</span>)
+</pre>
+</div>
+
+<pre class="example">
+Man City: -0.2365
+Draw: 0.1892
+Chelsea: 0.5715
+
+</pre>
+
+</section>
+</section>
+<section>
+<section id="slide-org7ede7ea" data-background="plain_quantbet_background.png">
+<h2 id="org7ede7ea">TFP Vs Stan</h2>
+<div class="outline-text-2" id="text-org7ede7ea">
+</div>
+</section>
+<section id="slide-orgdcdbdea" data-background="plain_quantbet_background.png">
+<h3 id="orgdcdbdea">Stan good, TFP bad</h3>
+<ul>
+<li>Everything "just worked" in Stan</li>
+<li>Stan tells you when bad stuff happens</li>
+<li>Spent many hours debugging TFP stuff to get a few minutes runtime speedup for only big
+problems</li>
+<li>The Stan ecosystem is very good</li>
+
+</ul>
+
+</section>
+<section id="slide-org631e448" data-background="plain_quantbet_background.png">
+<h3 id="org631e448">TFP good, Stan bad</h3>
+<ul>
+<li>TFP is just regular interactive python</li>
+<li>Can interact with a TFP model much more easily</li>
+<li>TFP can easily leverage hardware</li>
+<li>Very hard to debug and test Stan code</li>
+<li>Stan suffers from the "2 language problem"</li>
+<li>Compiling Stan's generated C++ is slow</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-org6ac3791" data-background="plain_quantbet_background.png">
+<h2 id="org6ac3791">Where to learn more</h2>
+<ul>
+<li><a href="https://github.com/tensorflow/probability/tree/master/tensorflow_probability/examples/jupyter_notebooks">jupyter notebook examples</a></li>
+<li>R users, see <a href="https://blogs.rstudio.com/tensorflow/posts/2019-11-07-tfp-cran/">tfprobability 0.8 on CRAN: Now how can you use it?</a></li>
+<li>Making a pull request is a very good way to learn</li>
+<li>Watch the GitHub issues</li>
+
+</ul>
+
+</section>
+</section>
+<section>
+<section id="slide-orga01eefe" data-background="plain_quantbet_background.png">
+<h2 id="orga01eefe">Thanks!</h2>
+<blockquote>
+<p>
+There are no routine statistical questions, only questionable statistical routines.
+</p>
+</blockquote>
+
+<p>
+&#x2013; <a href="https://en.wikipedia.org/wiki/David_Cox_(statistician)">David Cox</a>
+</p>
+</section>
+</section>
+</div>
+</div>
+<script src="file:///home/jeff/workspace/reveal.js/lib/js/head.min.js"></script>
+<script src="file:///home/jeff/workspace/reveal.js/js/reveal.js"></script>
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+
+controls: true,
+progress: true,
+history: false,
+center: true,
+slideNumber: 'c/t',
+rollingLinks: false,
+keyboard: true,
+mouseWheel: false,
+fragmentInURL: false,
+hashOneBasedIndex: false,
+pdfSeparateFragments: true,
+
+overview: true,
+
+theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+transition: Reveal.getQueryHash().transition || 'convex', // see README of reveal.js for options
+transitionSpeed: 'default',
+
+// Optional libraries used to extend reveal.js
+dependencies: [
+ { src: 'file:///home/jeff/workspace/reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/jeff/workspace/reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/jeff/workspace/reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: 'file:///home/jeff/workspace/reveal.js/plugin/search/search.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: 'file:///home/jeff/workspace/reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } }]
+
+});
+</script>
+</body>
+</html>

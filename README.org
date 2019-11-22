@@ -1,0 +1,5 @@
+#+Title: An introduction to TensorFlow Probability (TFP)
+#+Author: Jeff Pollock
+#+Email: jeffpollock9@gmail.com
+
+Slides + code for [[https://www.meetup.com/Bayesian-Mixer-London/events/264531682/][An introduction to TensorFlow Probability]]
